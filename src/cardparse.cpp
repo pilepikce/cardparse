@@ -50,8 +50,11 @@ void load_data(const char *spec) {
         return;
     }
     payload++; // skip the ':' separator
-    for (long i = 0; i < len; i++) {
-        buf[i] = payload[i]; // no bounds check against sizeof(buf)
+    size_t copied = 0;
+    while (len > 0 && copied < sizeof(buf) &&
+           copied < static_cast<unsigned long>(len) && payload[copied] != '\0') {
+        buf[copied] = payload[copied];
+        ++copied;
     }
     printf("loaded %ld bytes of data\n", len);
 }
