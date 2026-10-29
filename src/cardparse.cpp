@@ -11,6 +11,8 @@
 
 #include <cstdlib>
 #include <cstring>
+#include <fcntl.h>
+#include <unistd.h>
 
 // Strip a trailing newline (and carriage return) in place.
 void trim_newline(char *s) {
@@ -54,11 +56,22 @@ void load_data(const char *spec) {
     printf("loaded %ld bytes of data\n", len);
 }
 
-// Write the current card to a path taken from the file.
-// The path is used exactly as supplied.
+// Export only to a plain filename in the current directory.
 void save_card(const Card *c, const char *path) {
-    FILE *f = fopen(path, "w");
+    if (!path || !*path || strchr(path, '/') || strchr(path, '\\') ||
+        strcmp(path, ".") == 0 || strcmp(path, "..") == 0) {
+        fprintf(stderr, "invalid card output filename\n");
+        return;
+    }
+    // Do not let an existing symbolic link redirect the export elsewhere.
+    int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW, 0666);
+    if (fd < 0) {
+        fprintf(stderr, "cannot open %s for writing\n", path);
+        return;
+    }
+    FILE *f = fdopen(fd, "w");
     if (!f) {
+        close(fd);
         fprintf(stderr, "cannot open %s for writing\n", path);
         return;
     }
