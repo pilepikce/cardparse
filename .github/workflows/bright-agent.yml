@@ -5,8 +5,6 @@
 name: Bright Agent (DAST)
 
 on:
-  issue_comment:
-    types: [created]
   workflow_dispatch:
 
 permissions:
@@ -21,40 +19,18 @@ concurrency:
 jobs:
   bright-agent:
     if: >-
-      (github.event_name == 'issue_comment' && github.event.issue.pull_request && contains(github.event.comment.body, '/bright-agent') && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)) ||
       github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     env:
       ASSET: bright-agent-linux-x64
     steps:
-      # Resolve the PR for a /bright-agent comment and REFUSE fork PRs before checkout
-      # (issue_comment runs in the base repo with secrets in scope).
-      - name: Resolve steering PR (refuse forks)
-        id: steer
-        if: github.event_name == 'issue_comment'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const { data: pr } = await github.rest.pulls.get({
-              owner: context.repo.owner, repo: context.repo.repo,
-              pull_number: context.issue.number,
-            });
-            const sameRepo = pr.head.repo && pr.head.repo.full_name === `${context.repo.owner}/${context.repo.repo}`;
-            if (!sameRepo) {
-              core.setFailed("Steering disabled on fork PRs."); return;
-            }
-            core.setOutput("head_ref", pr.head.ref);
-            core.setOutput("base_ref", pr.base.ref);
       - uses: actions/checkout@v5
         with:
-          ref: >-
-            ${{ (github.event_name == 'issue_comment' && steps.steer.outputs.head_ref)
-              || github.ref }}
           fetch-depth: 0
       - name: Download & verify Bright Agent
         working-directory: ${{ runner.temp }}
         run: |
-          base="https://github.com/NeuraLegion/bright-agent-dist/releases/latest/download"
+          base="https://github.com/BrightSec/bright-agent-dist/releases/latest/download"
           curl -fsSL -o "${ASSET}" "${base}/${ASSET}"
           curl -fsSL -o "${ASSET}.sha256" "${base}/${ASSET}.sha256"
           sha256sum -c "${ASSET}.sha256"
@@ -66,18 +42,11 @@ jobs:
           BRIGHT_TOKEN: ${{ secrets.BRIGHT_TOKEN }}
           INFERENCE_URL: "https://api.openai.com/v1"
           INFERENCE_TOKEN: ${{ secrets.INFERENCE_TOKEN }}
-          SCAN_SCOPE: ${{ (github.event_name == 'workflow_dispatch') && 'full' || 'changed' }}
+          SCAN_SCOPE: full
           RUN_MODE: fuzzing
-          AI_MODEL: gpt-6-luna
-          BRIGHT_STEERING_COMMENT: ${{ github.event_name == 'issue_comment' && github.event.comment.body || '' }}
-          BRIGHT_STEERING_COMMENT_ID: ${{ github.event_name == 'issue_comment' && github.event.comment.id || '' }}
-          BRIGHT_STEERING_AUTHOR: ${{ github.event_name == 'issue_comment' && github.event.comment.user.login || '' }}
-          BRIGHT_STEERING_AUTHOR_ASSOCIATION: ${{ github.event_name == 'issue_comment' && github.event.comment.author_association || '' }}
-          BRIGHT_STEERING_PR_NUMBER: ${{ github.event_name == 'issue_comment' && github.event.issue.number || '' }}
-          BRIGHT_STEERING_PR_HEAD: ${{ steps.steer.outputs.head_ref }}
-          BRIGHT_STEERING_PR_BASE: ${{ steps.steer.outputs.base_ref }}
-          DIFF_BASE: ${{ (github.event_name == 'issue_comment' && (steps.steer.outputs.base_ref && format('origin/{0}', steps.steer.outputs.base_ref) || '') || '') }}
+          AI_MODEL: "gpt-6-luna,gpt-6.1-sol"
         run: "${{ runner.temp }}/${{ env.ASSET }}"
 
 # NOTE: commits/PRs made with GITHUB_TOKEN don't trigger your other workflows.
 # Use a PAT as REPO_ACCESS_TOKEN if you need fix commits to re-run CI.
+
