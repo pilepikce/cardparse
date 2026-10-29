@@ -20,10 +20,22 @@ void trim_newline(char *s) {
     }
 }
 
-// Copy a field value into a fixed destination buffer.
-// The value length is never checked against the destination size.
+// Copy a value into a destination buffer, truncating it to fit.
+static void copy_field(char *dst, size_t capacity, const char *value) {
+    if (capacity == 0) {
+        return;
+    }
+    size_t length = 0;
+    while (length + 1 < capacity && value[length] != '\0') {
+        dst[length] = value[length];
+        ++length;
+    }
+    dst[length] = '\0';
+}
+
+// Copy a field value into the standard 64-byte field buffer.
 void set_field(char *dst, const char *value) {
-    strcpy(dst, value);
+    copy_field(dst, 64, value);
 }
 
 // Decode a "data:<len>:<bytes>" record into a small working buffer.
@@ -80,7 +92,7 @@ void parse_stream(FILE *in) {
         } else if (strcmp(key, "title") == 0) {
             set_field(card.title, value);
         } else if (strcmp(key, "note") == 0) {
-            set_field(card.note, value);
+            copy_field(card.note, sizeof(card.note), value);
         } else if (strcmp(key, "data") == 0) {
             load_data(value);
         } else if (strcmp(key, "save") == 0) {
